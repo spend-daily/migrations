@@ -162,3 +162,18 @@ Resources:
               - "sts:AssumeRole"
       ManagedPolicyArns:
         - !Ref MigrationsPolicy
+
+  Migrations:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lib/migrate.default
+      Role: !GetAtt MigrationsRole.Arn
+      Runtime: nodejs6.10
+      Timeout: 30
+      Environment:
+        Variables:
+          DB_USERNAME: !ImportValue spend-daily-global-db-user
+          DB_PASSWORD: !ImportValue spend-daily-global-db-password
+          DB_NAME: spend
+          DB_ADDRESS: !ImportValue spend-daily-global-db-address
+          DB_PORT: !ImportValue spend-daily-global-db-port
