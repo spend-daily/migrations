@@ -40,7 +40,7 @@ Resources:
                 - yarn
             build:
               commands:
-                - yarn run build:dist
+                - yarn run build
             post_build:
               commands:
                 - aws cloudformation package --template-file cloud-template.yaml --s3-bucket "${BUILD_BUCKET}" --output-template-file cloud-formation.yaml
