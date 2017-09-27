@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Migration stack for Spend Daily
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  GitHubRepo:
+    Type: String
+    Default: "migrations"
+
+  GitHubBranch:
+    Type: String
+    Default: "master"
+  
+  GitHubOwner:
+    Type: String
+    Default: "spend-daily"
+
+  MigrationsStack:
+    Type: String
+    Default: migrations
+
+Resources:
+  MigrationsBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "CODEPIPELINE"
+      Source:
+        Type: "CODEPIPELINE"
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              # Install yarn natively https://yarnpkg.com/en/docs/install#linux-tab
+              - sudo apt-get update && sudo apt-get install apt-transport-https
+              - curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+              - echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+              - sudo apt-get update && sudo apt-get install yarn
+              - yarn
+            build:
+              commands:
+                - yarn run build:dist
+            post_build:
+              commands:
+                - aws cloudformation package --template-file cloud-template.yaml --s3-bucket "${BUILD_BUCKET}" --output-template-file cloud-formation.yaml
+          artifacts:
+            files:
+              - node_modules/
+              - lib/
+              - cloud-formation.yaml
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/nodejs:6.3.1"
+        Type: "LINUX_CONTAINER"
+      Name: !Ref AWS::StackName
+      ServiceRole: !ImportValue spend-daily-global-build-role
+
+  MigrationsPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: MigrationsPipeline
+      RoleArn: !ImportValue spend-daily-global-pipeline-role-arn
+      ArtifactStore:
+        Type: S3
+        Location: !ImportValue spend-daily-global-artifact-bucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceCode
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !ImportValue spend-daily-github-token
+              OutputArtifacts:
+                - Name: SourceCode
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref MigrationsBuildProject
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: CloudFormation
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_NAMED_IAM
+                ChangeSetName: MigrationsChangeSet
+                RoleArn: !ImportValue spend-daily-global-stack-role-arn
+                StackName: !Ref MigrationsStack
+                TemplatePath: CloudFormation::cloud-formation.yaml
+              InputArtifacts:
+                - Name: CloudFormation
+              RunOrder: 1
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: MigrationsChangeSet
+                RoleArn: !ImportValue spend-daily-global-stack-role-arn
+                StackName: !Ref MigrationsStack
+              RunOrder: 2
+
+  MigrationsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: migrations-lambda-policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Resource: !Join
+            - ":"
+            - - "arn:aws:codepipeline:us-west-2:181782121001"
+              - !Ref MigrationsPipeline
+            Effect: Allow
+            Action:
+              - "codepipeline:PutJobSuccessResult"
+              - "codepipeline:PutJobFailureResult"
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - "rds:*"
+              - "logs:*"
+
+  MigrationsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - !Ref MigrationsPolicy
