@@ -45,6 +45,7 @@ Resources:
               commands:
                 - aws cloudformation package --template-file cloud-template.yaml --s3-bucket "${BUILD_BUCKET}" --output-template-file cloud-formation.yaml
           artifacts:
+            type: zip
             files:
               - node_modules/
               - lib/
@@ -166,6 +167,7 @@ Resources:
   Migrations:
     Type: AWS::Serverless::Function
     Properties:
+      CodeUri: ./
       Handler: lib/migrate.default
       Role: !GetAtt MigrationsRole.Arn
       Runtime: nodejs6.10
