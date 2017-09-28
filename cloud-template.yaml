@@ -166,6 +166,7 @@ Resources:
               - "sts:AssumeRole"
       ManagedPolicyArns:
         - !Ref MigrationsPolicy
+        - !ImportValue spend-daily-global-vpc-policy
 
   Migrations:
     Type: AWS::Serverless::Function
