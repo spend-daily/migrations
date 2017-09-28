@@ -3,6 +3,7 @@ import path from 'path'
 
 import { DB_ENDPOINT } from './config'
 
+console.log(DB_ENDPOINT)
 const db = knex({
   connection: DB_ENDPOINT,
   dialect: 'pg',
