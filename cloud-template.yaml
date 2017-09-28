@@ -183,3 +183,8 @@ Resources:
           DB_NAME: spend
           DB_ADDRESS: !ImportValue spend-daily-global-db-address
           DB_PORT: !ImportValue spend-daily-global-db-port
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue spend-daily-global-security-group-id
+        SubnetIds:
+          - !ImportValue spend-daily-global-subnet-us-west-2a
