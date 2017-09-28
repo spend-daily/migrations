@@ -188,3 +188,4 @@ Resources:
           - !ImportValue spend-daily-global-security-group-id
         SubnetIds:
           - !ImportValue spend-daily-global-subnet-us-west-2a
+          - !ImportValue spend-daily-global-subnet-us-west-2b
