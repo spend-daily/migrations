@@ -179,6 +179,7 @@ Resources:
       Environment:
         Variables:
           DB_USERNAME: !ImportValue spend-daily-global-db-user
+          DB_PASSWORD: !ImportValue spend-daily-global-db-password
           DB_NAME: spend
           DB_ADDRESS: !ImportValue spend-daily-global-db-address
           DB_PORT: !ImportValue spend-daily-global-db-port
